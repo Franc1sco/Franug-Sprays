@@ -1,8 +1,0 @@
-LightmappedGeneric
-{
-	"$basetexture"	"decals\franug\sm_csgosprays\spray_nosmoking"
-	"$translucent" "1"
-	"$decal" "1"
-	"$decalscale" "0.250"
-
-}
