@@ -2,8 +2,9 @@
 #include <sourcemod>
 #include <sdktools>
 #include <clientprefs>
+#include <emitsoundany>
 
-#define SOUND_SPRAY "player/sprayer.wav"
+#define SOUND_SPRAY "music/player/sprayer.mp3"
 
 #define MAX_SPRAYS 128
 
@@ -30,7 +31,7 @@ enum Listado
 new g_sprays[MAX_SPRAYS][Listado];
 new g_sprayCount = 0;
 
-#define PLUGIN "1.4.1"
+#define PLUGIN "1.4.2"
 
 public Plugin:myinfo =
 {
@@ -44,7 +45,7 @@ public Plugin:myinfo =
 public OnPluginStart()
 {
 	c_GameSprays = RegClientCookie("Sprays", "Sprays", CookieAccess_Private);
-	hCvar = CreateConVar("sm_franugsprays_version", PLUGIN, "SM Franug CSGO Sprays", FCVAR_PLUGIN|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	hCvar = CreateConVar("sm_franugsprays_version", PLUGIN, "SM Franug CSGO Sprays", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	SetConVarString(hCvar, PLUGIN);
 	
 	RegConsoleCmd("sm_spray", MakeSpray);
@@ -129,6 +130,11 @@ public OnClientPostAdminCheck(iClient)
 public OnMapStart()
 {
 	PrecacheSound(SOUND_SPRAY, true);
+	
+	char sBuffer[256];
+	Format(sBuffer, sizeof(sBuffer), "sound/%s", SOUND_SPRAY);
+	AddFileToDownloadsTable(sBuffer);
+	
 	BuildPath(Path_SM, path_decals, sizeof(path_decals), "configs/csgo-sprays/sprays.cfg");
 	ReadDecals();
 }
@@ -350,7 +356,7 @@ public Action:OnPlayerRunCmd(iClient, &buttons, &impulse)
 		TE_SendToAll();
 
 		PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You have used your spray!");
-		//EmitSoundToAll(SOUND_SPRAY, iClient, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
+		EmitAmbientSoundAny(SOUND_SPRAY, fVector, iClient, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
 
 		g_iLastSprayed[iClient] = iTime;
 	}
