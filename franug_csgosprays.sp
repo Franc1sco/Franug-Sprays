@@ -148,7 +148,9 @@ public Action:roundStart(Handle:event, const String:name[], bool:dontBroadcast)
 	for (new i = 1; i < GetMaxClients(); i++)
 		if (IsClientInGame(i))
 			g_iLastSprayed[i] = false;
-
+			
+	if(g_sprayMapCount > g_maxMapSprays)
+		g_sprayMapCount = g_maxMapSprays;
 	for (new j = 0; j < g_sprayMapCount; j++)
 	{
 		TE_SetupBSPDecalCall(g_spraysMapAll[j][vecPos], g_spraysMapAll[j][index3]);
