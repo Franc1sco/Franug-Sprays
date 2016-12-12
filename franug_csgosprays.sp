@@ -175,6 +175,8 @@ public OnMapStart()
 	
 	BuildPath(Path_SM, path_decals, sizeof(path_decals), "configs/csgo-sprays/sprays.cfg");
 	ReadDecals();
+	g_sprayMapCount = 0;
+	g_sprayIndexLast = 0;
 }
 
 public Action:MakeSpray(iClient, args)
