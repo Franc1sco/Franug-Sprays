@@ -4,9 +4,11 @@
 #include <clientprefs>
 #include <emitsoundany>
 
-#define SOUND_SPRAY "music/player/sprayer.mp3"
+#define SOUND_SPRAY_REL "*/player/sprayer.mp3"
+#define SOUND_SPRAY "player/sprayer.mp3"
 
 #define MAX_SPRAYS 128
+#define MAX_MAP_SPRAYS 200
 
 new g_iLastSprayed[MAXPLAYERS + 1];
 new String:path_decals[PLATFORM_MAX_PATH];
@@ -15,10 +17,14 @@ new g_sprayElegido[MAXPLAYERS + 1];
 new g_time;
 new g_distance;
 new bool:g_use;
+new g_maxMapSprays;
+new g_resetTimeOnKill;
 new Handle:h_distance;
 new Handle:h_time;
 new Handle:hCvar;
 new Handle:h_use;
+new Handle:h_maxMapSprays;
+new Handle:h_resetTimeOnKill;
 
 new Handle:c_GameSprays = INVALID_HANDLE;
 
@@ -28,10 +34,24 @@ enum Listado
 	index
 }
 
+enum MapSpray
+{
+	Float:vecPos[3],
+	index3
+}
+
 new g_sprays[MAX_SPRAYS][Listado];
 new g_sprayCount = 0;
 
-#define PLUGIN "1.4.2"
+// Array to store previous sprays
+new g_spraysMapAll[MAX_MAP_SPRAYS][MapSpray];
+// Running count of all sprays on the map
+new g_sprayMapCount = 0;
+// Current index of the last spray in the array; this resets to 0 when g_maxMapSprays is reached (FIFO)
+new g_sprayIndexLast = 0;
+
+
+#define PLUGIN "1.4.4"
 
 public Plugin:myinfo =
 {
@@ -51,18 +71,25 @@ public OnPluginStart()
 	RegConsoleCmd("sm_spray", MakeSpray);
 	RegConsoleCmd("sm_sprays", GetSpray);
 	HookEvent("round_start", roundStart);
+	HookEvent("player_death", Event_PlayerDeath);
 	
 	h_time = CreateConVar("sm_csgosprays_time", "30");
 	h_distance = CreateConVar("sm_csgosprays_distance", "115");
 	h_use = CreateConVar("sm_csgosprays_use", "1");
+	h_maxMapSprays = CreateConVar("sm_csgosprays_mapmax", "25");
+	h_resetTimeOnKill = CreateConVar("sm_csgosprays_reset_time_on_kill", "1");
 	
 	g_time = GetConVarInt(h_time);
 	g_distance = GetConVarInt(h_distance);
 	g_use = GetConVarBool(h_use);
+	g_maxMapSprays = GetConVarInt(h_maxMapSprays);
+	g_resetTimeOnKill = GetConVarBool(h_resetTimeOnKill);
 	HookConVarChange(h_time, OnConVarChanged);
 	HookConVarChange(h_distance, OnConVarChanged);
 	HookConVarChange(hCvar, OnConVarChanged);
 	HookConVarChange(h_use, OnConVarChanged);
+	HookConVarChange(h_maxMapSprays, OnConVarChanged);
+	HookConVarChange(h_resetTimeOnKill, OnConVarChanged);
 }
 
 public OnPluginEnd()
@@ -111,6 +138,20 @@ public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newV
 	{
 		g_use = bool:StringToInt(newValue);
 	}
+	else if (convar == h_maxMapSprays)
+	{
+		if(StringToInt(newValue) > MAX_MAP_SPRAYS)
+		{		
+			g_maxMapSprays = MAX_MAP_SPRAYS;
+			SetConVarInt(h_maxMapSprays, MAX_MAP_SPRAYS);
+		}
+		else
+			g_maxMapSprays = StringToInt(newValue);
+	}
+	else if (convar == h_resetTimeOnKill)
+	{
+		g_resetTimeOnKill = bool:StringToInt(newValue);
+	}
 }
 
 public Action:roundStart(Handle:event, const String:name[], bool:dontBroadcast) 
@@ -118,6 +159,14 @@ public Action:roundStart(Handle:event, const String:name[], bool:dontBroadcast)
 	for (new i = 1; i < GetMaxClients(); i++)
 		if (IsClientInGame(i))
 			g_iLastSprayed[i] = false;
+			
+	if(g_sprayMapCount > g_maxMapSprays)
+		g_sprayMapCount = g_maxMapSprays;
+	for (new j = 0; j < g_sprayMapCount; j++)
+	{
+		TE_SetupBSPDecalCall(g_spraysMapAll[j][vecPos], g_spraysMapAll[j][index3]);
+		TE_SendToAll();
+	}
 
 }
 
@@ -129,14 +178,16 @@ public OnClientPostAdminCheck(iClient)
 
 public OnMapStart()
 {
-	PrecacheSound(SOUND_SPRAY, true);
-	
 	char sBuffer[256];
 	Format(sBuffer, sizeof(sBuffer), "sound/%s", SOUND_SPRAY);
 	AddFileToDownloadsTable(sBuffer);
 	
+	FakePrecacheSound(SOUND_SPRAY_REL);
+	
 	BuildPath(Path_SM, path_decals, sizeof(path_decals), "configs/csgo-sprays/sprays.cfg");
 	ReadDecals();
+	g_sprayMapCount = 0;
+	g_sprayIndexLast = 0;
 }
 
 public Action:MakeSpray(iClient, args)
@@ -186,10 +237,19 @@ public Action:MakeSpray(iClient, args)
 			return Plugin_Handled;
 		}
 		TE_SetupBSPDecal(fClientEyeViewPoint, g_sprays[g_sprayElegido[iClient]][index]);
+		
+		// Save spray position and identifier
+		if(g_sprayIndexLast == g_maxMapSprays)
+			g_sprayIndexLast = 0;
+		g_spraysMapAll[g_sprayIndexLast][vecPos] = fClientEyeViewPoint;
+		g_spraysMapAll[g_sprayIndexLast][index3] = g_sprays[g_sprayElegido[iClient]][index];
+		g_sprayIndexLast++;
+		if(g_sprayMapCount != g_maxMapSprays)
+			g_sprayMapCount++;
 	}
 	TE_SendToAll();
 
-	EmitSoundToAll(SOUND_SPRAY, iClient, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
+	EmitSoundToAll(SOUND_SPRAY_REL, iClient, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
 
 	g_iLastSprayed[iClient] = iTime;
 	return Plugin_Handled;
@@ -252,6 +312,15 @@ stock GetPlayerEyeViewPoint(iClient, Float:fPosition[3])
 public bool:TraceEntityFilterPlayer(iEntity, iContentsMask)
 {
 	return iEntity > GetMaxClients();
+}
+
+TE_SetupBSPDecalCall(const Float:vecOrigin[], index2) {
+	
+	// I know.. couldn't get the array to play nice with the compiler.
+	new Float:vector[3];
+	for (new i=0; i < 3; i++)
+		vector[i] = vecOrigin[i];
+	TE_SetupBSPDecal(vector, index2);
 }
 
 TE_SetupBSPDecal(const Float:vecOrigin[3], index2) {
@@ -352,12 +421,43 @@ public Action:OnPlayerRunCmd(iClient, &buttons, &impulse)
 				return;
 			}
 			TE_SetupBSPDecal(fClientEyeViewPoint, g_sprays[g_sprayElegido[iClient]][index]);
+			
+			// Save spray position and identifier
+			if(g_sprayIndexLast == g_maxMapSprays)
+				g_sprayIndexLast = 0;
+			g_spraysMapAll[g_sprayIndexLast][vecPos] = fClientEyeViewPoint;
+			g_spraysMapAll[g_sprayIndexLast][index3] = g_sprays[g_sprayElegido[iClient]][index];
+			g_sprayIndexLast++;
+			if(g_sprayMapCount != g_maxMapSprays)
+				g_sprayMapCount++;
 		}
 		TE_SendToAll();
 
 		PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You have used your spray!");
-		EmitAmbientSoundAny(SOUND_SPRAY, fVector, iClient, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
+		EmitAmbientSoundAny(SOUND_SPRAY_REL, fVector, iClient, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
 
 		g_iLastSprayed[iClient] = iTime;
 	}
+}
+
+public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	if(g_resetTimeOnKill)
+	{
+		new user = GetClientOfUserId(GetEventInt(event, "attacker"));
+		new victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	
+		if(user == 0 || user == victim || IsFakeClient(user))
+			return Plugin_Continue;
+		
+		// Reset attacker's spray time on a kill
+		g_iLastSprayed[user] = false;
+	}
+	
+	return Plugin_Continue;
+}
+
+stock FakePrecacheSound( const String:szPath[] )
+{
+	AddToStringTable( FindStringTable( "soundprecache" ), szPath );
 }
