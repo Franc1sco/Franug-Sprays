@@ -98,7 +98,8 @@ public OnPluginStart()
 	HookConVarChange(h_resetTimeOnKill, OnConVarChanged);
 	HookConVarChange(h_showMsg, OnConVarChanged);
 	
-	SetCookieMenuItem(SprayPrefSelected, 0, "Sprays"); 
+	SetCookieMenuItem(SprayPrefSelected, 0, "Sprays");
+	AutoExecConfig();
 }
 
 public OnPluginEnd()
@@ -212,7 +213,7 @@ public Action:MakeSpray(iClient, args)
 	{
 		if(g_showMsg)
 		{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to be alive for use this command");
+			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to be alive to use this command!");
 		}
 		return Plugin_Handled;
 	}
@@ -224,7 +225,7 @@ public Action:MakeSpray(iClient, args)
 	{
 		if(g_showMsg)
 		{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to wait %i seconds more to use this command", g_time-restante);
+			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to wait %i second(s) to use this command again!", g_time-restante);
 		}
 		return Plugin_Handled;
 	}
@@ -242,7 +243,7 @@ public Action:MakeSpray(iClient, args)
 	{
 		if(g_showMsg)
 		{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You are away from the wall to use this command");
+			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You are too far away from the wall to use this command!");
 		}
 		return Plugin_Handled;
 	}
@@ -257,7 +258,7 @@ public Action:MakeSpray(iClient, args)
 		{
 			if(g_showMsg)
 			{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 your spray doesn't work, choose other with !sprays");
+			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 Your spray doesn't work, choose another one with !sprays!");
 			}
 			return Plugin_Handled;
 		}
@@ -304,7 +305,14 @@ public DIDMenuHandler(Handle:menu, MenuAction:action, client, itemNum)
 		g_sprayElegido[client] = StringToInt(info);
 		if(g_showMsg)
 		{
+			if(g_sprayElegido[client] == 0)
+			{
+				PrintToChat(client, " \x04[SM_CSGO-SPRAYS]\x01 You have choosen\x03 a random spray \x01as your spray!");
+			}
+			else
+			{
 			PrintToChat(client, " \x04[SM_CSGO-SPRAYS]\x01 You have choosen\x03 %s \x01as your spray!",g_sprays[g_sprayElegido[client]][Nombre]);
+			}
 		}
 	}
 	else if (action == MenuAction_Cancel) 
@@ -447,7 +455,7 @@ public Action:OnPlayerRunCmd(iClient, &buttons, &impulse)
 			{
 				if(g_showMsg)
 				{
-					PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 your spray doesn't work, choose other with !sprays");
+					PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 Your spray doesn't work, choose another one with !sprays!");
 				}
 				return;
 			}
@@ -466,7 +474,7 @@ public Action:OnPlayerRunCmd(iClient, &buttons, &impulse)
 
 		if(g_showMsg)
 		{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You have used your spray!");
+			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You have used your spray.");
 		}
 		EmitAmbientSoundAny(SOUND_SPRAY_REL, fVector, iClient, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
 
