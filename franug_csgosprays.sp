@@ -54,7 +54,7 @@ new g_sprayMapCount = 0;
 new g_sprayIndexLast = 0;
 
 
-#define PLUGIN "1.4.4"
+#define PLUGIN "1.4.5"
 
 public Plugin:myinfo =
 {
