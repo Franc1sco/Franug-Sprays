@@ -19,12 +19,15 @@ new g_distance;
 new bool:g_use;
 new g_maxMapSprays;
 new g_resetTimeOnKill;
+new g_showMsg;
+
 new Handle:h_distance;
 new Handle:h_time;
 new Handle:hCvar;
 new Handle:h_use;
 new Handle:h_maxMapSprays;
 new Handle:h_resetTimeOnKill;
+new Handle:h_showMsg;
 
 new Handle:c_GameSprays = INVALID_HANDLE;
 
@@ -73,23 +76,27 @@ public OnPluginStart()
 	HookEvent("round_start", roundStart);
 	HookEvent("player_death", Event_PlayerDeath);
 	
-	h_time = CreateConVar("sm_csgosprays_time", "30");
-	h_distance = CreateConVar("sm_csgosprays_distance", "115");
-	h_use = CreateConVar("sm_csgosprays_use", "1");
-	h_maxMapSprays = CreateConVar("sm_csgosprays_mapmax", "25");
-	h_resetTimeOnKill = CreateConVar("sm_csgosprays_reset_time_on_kill", "1");
+	h_time = CreateConVar("sm_csgosprays_time", "30", "Cooldown between sprays");
+	h_distance = CreateConVar("sm_csgosprays_distance", "115", "How far the sprayer can reach");
+	h_use = CreateConVar("sm_csgosprays_use", "1", "Spray when a player runs +use (Default: E)");
+	h_maxMapSprays = CreateConVar("sm_csgosprays_mapmax", "25", "Maximum ammount of sprays on the map");
+	h_resetTimeOnKill = CreateConVar("sm_csgosprays_reset_time_on_kill", "1", "Reset the cooldown on a kill");
+	h_showMsg = CreateConVar("sm_csgosprays_show_messages", "1", "Print messages of this plugin to the players");
 	
 	g_time = GetConVarInt(h_time);
 	g_distance = GetConVarInt(h_distance);
 	g_use = GetConVarBool(h_use);
 	g_maxMapSprays = GetConVarInt(h_maxMapSprays);
 	g_resetTimeOnKill = GetConVarBool(h_resetTimeOnKill);
+	g_showMsg = GetConVarBool(h_showMsg);
+	
 	HookConVarChange(h_time, OnConVarChanged);
 	HookConVarChange(h_distance, OnConVarChanged);
 	HookConVarChange(hCvar, OnConVarChanged);
 	HookConVarChange(h_use, OnConVarChanged);
 	HookConVarChange(h_maxMapSprays, OnConVarChanged);
 	HookConVarChange(h_resetTimeOnKill, OnConVarChanged);
+	HookConVarChange(h_showMsg, OnConVarChanged);
 	
 	SetCookieMenuItem(SprayPrefSelected, 0, "Sprays"); 
 }
@@ -154,6 +161,10 @@ public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newV
 	{
 		g_resetTimeOnKill = bool:StringToInt(newValue);
 	}
+	else if (convar == h_showMsg)
+	{
+		g_showMsg = bool:StringToInt(newValue);
+	}
 }
 
 public Action:roundStart(Handle:event, const String:name[], bool:dontBroadcast) 
@@ -199,7 +210,10 @@ public Action:MakeSpray(iClient, args)
 
 	if(!IsPlayerAlive(iClient))
 	{
-		PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to be alive for use this command");
+		if(g_showMsg)
+		{
+			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to be alive for use this command");
+		}
 		return Plugin_Handled;
 	}
 
@@ -208,7 +222,10 @@ public Action:MakeSpray(iClient, args)
 	
 	if(restante < g_time)
 	{
-		PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to wait %i seconds more to use this command", g_time-restante);
+		if(g_showMsg)
+		{
+			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to wait %i seconds more to use this command", g_time-restante);
+		}
 		return Plugin_Handled;
 	}
 
@@ -223,7 +240,10 @@ public Action:MakeSpray(iClient, args)
 
 	if(GetVectorLength(fVector) > g_distance)
 	{
-		PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You are away from the wall to use this command");
+		if(g_showMsg)
+		{
+			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You are away from the wall to use this command");
+		}
 		return Plugin_Handled;
 	}
 
@@ -235,7 +255,10 @@ public Action:MakeSpray(iClient, args)
 	{
 		if(g_sprays[g_sprayElegido[iClient]][index] == 0)
 		{
+			if(g_showMsg)
+			{
 			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 your spray doesn't work, choose other with !sprays");
+			}
 			return Plugin_Handled;
 		}
 		TE_SetupBSPDecal(fClientEyeViewPoint, g_sprays[g_sprayElegido[iClient]][index]);
@@ -279,7 +302,10 @@ public DIDMenuHandler(Handle:menu, MenuAction:action, client, itemNum)
 		
 		GetMenuItem(menu, itemNum, info, sizeof(info));
 		g_sprayElegido[client] = StringToInt(info);
-		PrintToChat(client, " \x04[SM_CSGO-SPRAYS]\x01 You have choosen\x03 %s \x01as your spray!",g_sprays[g_sprayElegido[client]][Nombre]);
+		if(g_showMsg)
+		{
+			PrintToChat(client, " \x04[SM_CSGO-SPRAYS]\x01 You have choosen\x03 %s \x01as your spray!",g_sprays[g_sprayElegido[client]][Nombre]);
+		}
 	}
 	else if (action == MenuAction_Cancel) 
 	{ 
@@ -419,7 +445,10 @@ public Action:OnPlayerRunCmd(iClient, &buttons, &impulse)
 		{
 			if(g_sprays[g_sprayElegido[iClient]][index] == 0)
 			{
-				PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 your spray doesn't work, choose other with !sprays");
+				if(g_showMsg)
+				{
+					PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 your spray doesn't work, choose other with !sprays");
+				}
 				return;
 			}
 			TE_SetupBSPDecal(fClientEyeViewPoint, g_sprays[g_sprayElegido[iClient]][index]);
@@ -435,7 +464,10 @@ public Action:OnPlayerRunCmd(iClient, &buttons, &impulse)
 		}
 		TE_SendToAll();
 
-		PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You have used your spray!");
+		if(g_showMsg)
+		{
+			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You have used your spray!");
+		}
 		EmitAmbientSoundAny(SOUND_SPRAY_REL, fVector, iClient, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
 
 		g_iLastSprayed[iClient] = iTime;
