@@ -90,6 +90,8 @@ public OnPluginStart()
 	HookConVarChange(h_use, OnConVarChanged);
 	HookConVarChange(h_maxMapSprays, OnConVarChanged);
 	HookConVarChange(h_resetTimeOnKill, OnConVarChanged);
+	
+	SetCookieMenuItem(SprayPrefSelected, 0, "Sprays"); 
 }
 
 public OnPluginEnd()
@@ -460,4 +462,12 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 stock FakePrecacheSound( const String:szPath[] )
 {
 	AddToStringTable( FindStringTable( "soundprecache" ), szPath );
+}
+
+public SprayPrefSelected(client, CookieMenuAction:action, any:info, String:buffer[], maxlen) 
+{ 
+    if (action == CookieMenuAction_SelectOption) 
+    { 
+        GetSpray(client,0); 
+    } 
 }
