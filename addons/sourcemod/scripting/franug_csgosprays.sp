@@ -38,7 +38,7 @@ int g_sprayElegido[MAXPLAYERS + 1];
 int g_time;
 int g_distance;
 bool g_use;
-int g_maxMapSprays;
+int g_maxMapSprays = 25;
 int g_resetTimeOnKill;
 int g_showMsg;
 
@@ -197,12 +197,18 @@ public Action roundStart(Handle event, const char[] name, bool dontBroadcast)
 			
 	if(g_sprayMapCount > g_maxMapSprays)
 		g_sprayMapCount = g_maxMapSprays;
+		
 	for (int j = 0; j < g_sprayMapCount; j++)
 	{
-		TE_SetupBSPDecalCall(g_spraysMapAll[j].vecPos, g_spraysMapAll[j].index3);
-		TE_SendToAll();
+		CreateTimer(0.1, restoreDecal, j);
 	}
 
+}
+
+public Action restoreDecal(Handle timer, int index)
+{
+    TE_SetupBSPDecal(g_spraysMapAll[index].vecPos, g_spraysMapAll[index].index3);
+    TE_SendToAll();
 }
 
 public void OnClientPostAdminCheck(int iClient)
@@ -234,7 +240,7 @@ public Action MakeSpray(int iClient, int args)
 	{
 		if(g_showMsg)
 		{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to be alive to use this command!");
+			PrintToChat(iClient, " \x04[SPRAYS]\x01 You need to be alive to use this command!");
 		}
 		return Plugin_Handled;
 	}
@@ -246,7 +252,7 @@ public Action MakeSpray(int iClient, int args)
 	{
 		if(g_showMsg)
 		{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You need to wait %i second(s) to use this command again!", g_time-restante);
+			PrintToChat(iClient, " \x04[SPRAYS]\x01 You need to wait %i second(s) to use this command again!", g_time-restante);
 		}
 		return Plugin_Handled;
 	}
@@ -264,40 +270,50 @@ public Action MakeSpray(int iClient, int args)
 	{
 		if(g_showMsg)
 		{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You are too far away from the wall to use this command!");
+			PrintToChat(iClient, " \x04[SPRAYS]\x01 You are too far away from the wall to use this command!");
 		}
 		return Plugin_Handled;
 	}
+	
+	int indexForSpray;
 
 	if(g_sprayElegido[iClient] == 0)
 	{
-		TE_SetupBSPDecal(fClientEyeViewPoint, g_sprays[GetRandomInt(1, g_sprayCount-1)].index);
+        indexForSpray = g_sprays[GetRandomInt(1, g_sprayCount-1)].index;
+		TE_SetupBSPDecal(fClientEyeViewPoint, indexForSpray);
 	}
 	else
 	{
-		if(g_sprays[g_sprayElegido[iClient]].index == 0)
+        indexForSpray = g_sprays[g_sprayElegido[iClient]].index;
+		if(indexForSpray == 0)
 		{
 			if(g_showMsg)
 			{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 Your spray doesn't work, choose another one with !sprays!");
+                PrintToChat(iClient, " \x04[SPRAYS]\x01 Your spray doesn't work, choose another one with !sprays!");
 			}
 			return Plugin_Handled;
 		}
-		TE_SetupBSPDecal(fClientEyeViewPoint, g_sprays[g_sprayElegido[iClient]].index);
+		TE_SetupBSPDecal(fClientEyeViewPoint, indexForSpray);
 		
-		// Save spray position and identifier
-		if(g_sprayIndexLast == g_maxMapSprays)
-			g_sprayIndexLast = 0;
-		g_spraysMapAll[g_sprayIndexLast].vecPos = fClientEyeViewPoint;
-		g_spraysMapAll[g_sprayIndexLast].index3 = g_sprays[g_sprayElegido[iClient]].index;
-		g_sprayIndexLast++;
-		if(g_sprayMapCount != g_maxMapSprays)
-			g_sprayMapCount++;
 	}
+	
 	TE_SendToAll();
-
 	EmitSoundToAll(SOUND_SPRAY_REL, iClient, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
-
+	
+    // Save spray position and identifier
+	if(g_sprayIndexLast == g_maxMapSprays)
+		g_sprayIndexLast = 0;
+	g_spraysMapAll[g_sprayIndexLast].vecPos = fClientEyeViewPoint;
+	g_spraysMapAll[g_sprayIndexLast].index3 = indexForSpray;
+		
+	g_sprayIndexLast++;
+	if(g_sprayMapCount != g_maxMapSprays)
+		g_sprayMapCount++;
+			
+    if(g_showMsg) {
+        PrintToChat(iClient, " \x04[SPRAYS]\x01 Your spray was painted successfully");
+	}
+	
 	g_iLastSprayed[iClient] = iTime;
 	return Plugin_Handled;
 }
@@ -307,10 +323,27 @@ public Action GetSpray(int client, int args)
 	Menu menu = new Menu(DIDMenuHandler);
 	menu.SetTitle("Choose your Spray");
 	char item[4];
-	menu.AddItem("0", "Random spray");
+	
+	char randomName[36];
+	randomName = "Random spray";
+	
+	if (g_sprayElegido[client] == 0) {
+        StrCat(randomName, sizeof(randomName), "(x)");
+    }
+	
+	menu.AddItem("0", randomName);
+	
 	for (int i=1; i<g_sprayCount; ++i) {
 		Format(item, 4, "%i", i);
-		menu.AddItem(item, g_sprays[i].Nombre);
+		
+		char entryName[36];
+		entryName = g_sprays[i].Nombre;
+		
+		if (g_sprayElegido[client] == i) {
+            StrCat(entryName, sizeof(entryName), "(x)");
+		}
+		
+		menu.AddItem(item, entryName);
 	}
 	menu.ExitButton = true;
 	menu.Display(client, 0);
@@ -328,11 +361,11 @@ public int DIDMenuHandler(Menu menu, MenuAction action, int client, int itemNum)
 		{
 			if(g_sprayElegido[client] == 0)
 			{
-				PrintToChat(client, " \x04[SM_CSGO-SPRAYS]\x01 You have choosen\x03 a random spray \x01as your spray!");
+				PrintToChat(client, " \x04[SPRAYS]\x01 You have choosen\x03 a random spray \x01as your spray!");
 			}
 			else
 			{
-			PrintToChat(client, " \x04[SM_CSGO-SPRAYS]\x01 You have choosen\x03 %s \x01as your spray!",g_sprays[g_sprayElegido[client]].Nombre);
+                PrintToChat(client, " \x04[SPRAYS]\x01 You have choosen\x03 %s \x01as your spray!",g_sprays[g_sprayElegido[client]].Nombre);
 			}
 		}
 	}
@@ -371,14 +404,6 @@ public bool TraceEntityFilterPlayer(int iEntity, int iContentsMask)
 	return iEntity > MaxClients;
 }
 
-void TE_SetupBSPDecalCall(const float[] vecOrigin, int index2) {
-	
-	// I know.. couldn't get the array to play nice with the compiler.
-	float vector[3];
-	for (int i=0; i < 3; i++)
-		vector[i] = vecOrigin[i];
-	TE_SetupBSPDecal(vector, index2);
-}
 
 void TE_SetupBSPDecal(const float vecOrigin[3], int index2) {
 	
@@ -464,38 +489,40 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse)
 		{
 			return;
 		}
-
+		
+		int indexForSpray;
 
 		if(g_sprayElegido[iClient] == 0)
 		{
-			TE_SetupBSPDecal(fClientEyeViewPoint, g_sprays[GetRandomInt(1, g_sprayCount-1)].index);
+            indexForSpray =  g_sprays[GetRandomInt(1, g_sprayCount-1)].index;
+			TE_SetupBSPDecal(fClientEyeViewPoint, indexForSpray);
 		}
 		else
 		{
-			if(g_sprays[g_sprayElegido[iClient]].index == 0)
+            indexForSpray = g_sprays[g_sprayElegido[iClient]].index; 
+			if(indexForSpray == 0)
 			{
-				if(g_showMsg)
-				{
-					PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 Your spray doesn't work, choose another one with !sprays!");
+				if(g_showMsg) {
+					PrintToChat(iClient, " \x04[SPRAYS]\x01 Your spray doesn't work, choose another one with !sprays!");
 				}
 				return;
 			}
-			TE_SetupBSPDecal(fClientEyeViewPoint, g_sprays[g_sprayElegido[iClient]].index);
-			
-			// Save spray position and identifier
-			if(g_sprayIndexLast == g_maxMapSprays)
-				g_sprayIndexLast = 0;
-			g_spraysMapAll[g_sprayIndexLast].vecPos = fClientEyeViewPoint;
-			g_spraysMapAll[g_sprayIndexLast].index3 = g_sprays[g_sprayElegido[iClient]].index;
-			g_sprayIndexLast++;
-			if(g_sprayMapCount != g_maxMapSprays)
-				g_sprayMapCount++;
+			TE_SetupBSPDecal(fClientEyeViewPoint, indexForSpray);
 		}
+		
 		TE_SendToAll();
-
+		
+        // Save spray position and identifier
+        if(g_sprayIndexLast == g_maxMapSprays)
+			g_sprayIndexLast = 0;
+		g_spraysMapAll[g_sprayIndexLast].vecPos = fClientEyeViewPoint;
+		g_spraysMapAll[g_sprayIndexLast].index3 = indexForSpray;
+		g_sprayIndexLast++;
+		if(g_sprayMapCount != g_maxMapSprays) g_sprayMapCount++;
+		
 		if(g_showMsg)
 		{
-			PrintToChat(iClient, " \x04[SM_CSGO-SPRAYS]\x01 You have used your spray.");
+			PrintToChat(iClient, " \x04[SPRAYS]\x01 Your spray was painted successfully");
 		}
 		EmitAmbientSound(SOUND_SPRAY_REL, fVector, iClient, SNDLEVEL_NORMAL, SND_NOFLAGS, 0.6);
 
